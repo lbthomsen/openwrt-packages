@@ -9,12 +9,12 @@ include $(TOPDIR)/rules.mk
 
 PKG_NPM_NAME:=node-hid
 PKG_NAME:=$(PKG_NPM_NAME)
-PKG_VERSION:=1.3.1
+PKG_VERSION:=1.3.2
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NPM_NAME)-$(PKG_VERSION).tgz
 PKG_SOURCE_URL:=https://registry.npmjs.org/$(PKG_NPM_NAME)/-/
-PKG_HASH:=88c5a36c82c360d2583d6a1fe3bed31302ff994aca0867ec8678f681cdb38266
+PKG_HASH:=dce3ff3380d2ad66078ba77498e49693582437ba94bb84229f146e893fa4ed9a
 
 PKG_BUILD_DEPENDS:=node/host
 PKG_USE_MIPS16:=0
@@ -32,7 +32,7 @@ define Package/node-hid
   CATEGORY:=Languages
   TITLE:=Node.js package to access HID devices
   URL:=https://github.com/node-hid/node-hid
-  DEPENDS:=+node +node-npm +libusb-1.0 +hidapi +libudev-fbsd $(ICONV_DEPENDS)
+  DEPENDS:=+node +node-npm +libusb-1.0 +hidapi +libudev $(ICONV_DEPENDS)
 endef
 
 define Package/node-hid/description
