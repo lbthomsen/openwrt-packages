@@ -6,12 +6,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=stress-ng
-PKG_VERSION:=0.12.00
-PKG_RELEASE:=1
+PKG_VERSION:=0.13.03
+PKG_RELEASE:=$(AUTORELEASE)
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://kernel.ubuntu.com/~cking/tarballs/stress-ng
-PKG_HASH:=b2b738f574671926654b1623103a7aa58ee6911894ac78760ee188c4bfa96fe2
+PKG_HASH:=3e60d605e378d86a8591a30d6e557bed709d82a5b19616378002cd8ff0037a8b
 
 PKG_MAINTAINER:=Alexandru Ardelean <ardeleanalex@gmail.com>
 PKG_LICENSE:=GPL-2.0-only
@@ -27,7 +27,7 @@ define Package/stress-ng
   CATEGORY:=Utilities
   TITLE:=stress-ng is a stress test utility
   URL:=https://kernel.ubuntu.com/~cking/stress-ng/
-  DEPENDS:=+zlib
+  DEPENDS:=+zlib +libbsd +libaio +libsctp +libkmod
 endef
 
 define Package/stress-ng/description

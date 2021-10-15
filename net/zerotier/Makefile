@@ -6,12 +6,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=zerotier
-PKG_VERSION:=1.6.2
+PKG_VERSION:=1.6.6
 PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/zerotier/ZeroTierOne/tar.gz/$(PKG_VERSION)?
-PKG_HASH:=c8087b26c1191d36fda004b42cdfed31042cafd8586e49015586eef786f2c9a5
+PKG_HASH:=6c95ffca4a64bf948abbf3e550a0c4881b17cf45ff2f55e2a389d095f9be81a5
 PKG_BUILD_DIR:=$(BUILD_DIR)/ZeroTierOne-$(PKG_VERSION)
 
 PKG_MAINTAINER:=Moritz Warning <moritzwarning@web.de>
@@ -46,6 +46,7 @@ endif
 
 MAKE_FLAGS += \
 	DEFS="" \
+	OSTYPE="Linux" \
 
 define Build/Compile
 	$(call Build/Compile/Default,one)

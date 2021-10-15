@@ -1,20 +1,23 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=dockerd
-PKG_VERSION:=20.10.0
-PKG_RELEASE:=1
+PKG_VERSION:=20.10.9
+PKG_RELEASE:=$(AUTORELEASE)
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/moby/moby/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=c522994fa1c74aac227b9f4b47cf6b3d7ca5fc5b50f06b3dad41bd4dc92b6771
-PKG_SOURCE_VERSION:=e07c941c94 # SHA1 used within the docker executables
+PKG_GIT_URL:=github.com/moby/moby
+PKG_GIT_REF:=v$(PKG_VERSION)
+PKG_SOURCE_URL:=https://codeload.$(PKG_GIT_URL)/tar.gz/$(PKG_GIT_REF)?
+PKG_HASH:=359e8854d0d51bc884d434f182f64ca62f25fbbe7b9c6a336eb09f212fe8cc9a
+PKG_GIT_SHORT_COMMIT:=79ea9d3 # SHA1 used within the docker executables
 
 PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
 
 PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
+PKG_USE_MIPS16:=0
 
 GO_PKG:=github.com/docker/docker
 
@@ -30,7 +33,7 @@ define Package/dockerd
   CATEGORY:=Utilities
   TITLE:=Docker Community Edition Daemon
   URL:=https://www.docker.com/
-  DEPENDS:=$(GO_ARCH_DEPENDS) @(aarch64||arm||x86_64) +btrfs-progs +ca-certificates +containerd +libdevmapper +libnetwork +tini \
+  DEPENDS:=$(GO_ARCH_DEPENDS) +btrfs-progs +ca-certificates +containerd +libdevmapper +libnetwork +tini \
            +KERNEL_SECCOMP:libseccomp +iptables-mod-extra +kmod-br-netfilter +kmod-ikconfig +kmod-nf-conntrack-netlink +kmod-nf-ipvs \
            +kmod-nf-nat +kmod-veth
   USERID:=docker:docker
@@ -45,6 +48,7 @@ define Package/dockerd/description
 The Docker CE Engine.
 endef
 
+GO_PKG_BUILD_VARS += GO111MODULE=auto
 TAR_OPTIONS:=--strip-components 1 $(TAR_OPTIONS)
 TAR_CMD=$(HOST_TAR) -C $(1) $(TAR_OPTIONS)
 
@@ -54,8 +58,8 @@ define EnsureVendoredVersion
 	( \
 		DEP_VER=$$$$( grep --only-matching --perl-regexp '(?<=PKG_SOURCE_VERSION:=)(.*)' "$(1)" ); \
 		VEN_VER=$$$$( grep --only-matching --perl-regexp '(?<=_COMMIT:=)(.*)(?=})' "$(PKG_BUILD_DIR)/hack/dockerfile/install/$(2)" ); \
-		if [ $$$$VEN_VER != $$$$DEP_VER ]; then \
-			echo "ERROR: Expected 'PKG_SOURCE_VERSION:=$$$$VEN_VER' in '$(1)', found 'PKG_SOURCE_VERSION:=$$$$DEP_VER'"; \
+		if [ "$$$${VEN_VER}" != "$$$${DEP_VER}" ]; then \
+			echo "ERROR: Expected 'PKG_SOURCE_VERSION:=$$$${VEN_VER}' in '$(1)', found 'PKG_SOURCE_VERSION:=$$$${DEP_VER}'"; \
 			exit 1; \
 		fi \
 	)
@@ -73,9 +77,18 @@ define Build/Prepare
 	# Verify CLI is the same version
 	( \
 		CLI_MAKEFILE="../docker/Makefile"; \
-		CLI_VERSION=$$$$( grep --only-matching --perl-regexp '(?<=PKG_VERSION:=)(.*)' "$$$$CLI_MAKEFILE" ); \
-		if [ $$$$CLI_VERSION != $(PKG_VERSION) ]; then \
-			echo "ERROR: Expected 'PKG_VERSION:=$(PKG_VERSION)' in '$$$$CLI_MAKEFILE', found 'PKG_VERSION:=$$$$CLI_VERSION'"; \
+		CLI_VERSION=$$$$( grep --only-matching --perl-regexp '(?<=PKG_VERSION:=)(.*)' "$$$${CLI_MAKEFILE}" ); \
+		if [ "$$$${CLI_VERSION}" != "$(PKG_VERSION)" ]; then \
+			echo "ERROR: Expected 'PKG_VERSION:=$(PKG_VERSION)' in '$$$${CLI_MAKEFILE}', found 'PKG_VERSION:=$$$${CLI_VERSION}'"; \
+			exit 1; \
+		fi \
+	)
+
+	# Verify PKG_GIT_SHORT_COMMIT
+	( \
+		EXPECTED_PKG_GIT_SHORT_COMMIT=$$$$( $(CURDIR)/git-short-commit.sh '$(PKG_GIT_URL)' '$(PKG_GIT_REF)' '$(TMP_DIR)/git-short-commit/$(PKG_NAME)-$(PKG_VERSION)' ); \
+		if [ "$$$${EXPECTED_PKG_GIT_SHORT_COMMIT}" != "$(strip $(PKG_GIT_SHORT_COMMIT))" ]; then \
+			echo "ERROR: Expected 'PKG_GIT_SHORT_COMMIT:=$$$${EXPECTED_PKG_GIT_SHORT_COMMIT}', found 'PKG_GIT_SHORT_COMMIT:=$(strip $(PKG_GIT_SHORT_COMMIT))'"; \
 			exit 1; \
 		fi \
 	)
@@ -93,7 +106,7 @@ define Build/Compile
 	( \
 		cd $(PKG_BUILD_DIR); \
 		$(GO_PKG_VARS) \
-		DOCKER_GITCOMMIT=$(PKG_SOURCE_VERSION) \
+		DOCKER_GITCOMMIT=$(PKG_GIT_SHORT_COMMIT) \
 		DOCKER_BUILDTAGS='$(BUILDTAGS)' \
 		VERSION=$(PKG_VERSION) \
 		./hack/make.sh binary; \

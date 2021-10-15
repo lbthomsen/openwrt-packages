@@ -1,7 +1,7 @@
 #!/bin/sh /etc/rc.common
 
 USE_PROCD=1
-START=25
+START=99
 
 extra_command "uciadd" "<interface> <device> <zone> Add docker bridge configuration to network and firewall uci config"
 extra_command "ucidel" "<interface> <device> <zone> Delete docker bridge configuration from network and firewall uci config"
@@ -15,6 +15,28 @@ uci_quiet() {
 
 json_add_array_string() {
 	json_add_string "" "${1}"
+}
+
+find_network_device() {
+	local device="${1}"
+	local device_section=""
+
+	check_device() {
+		local cfg="${1}"
+		local device="${2}"
+
+		local type name
+		config_get type "${cfg}" type
+		config_get name "${cfg}" name
+
+		[ "${type}" = "bridge" ] && [ "${name}" = "${device}" ] \
+			&& device_section="${cfg}"
+	}
+
+	config_load network
+	config_foreach check_device device "${device}"
+
+	echo "${device_section}"
 }
 
 boot() {
@@ -40,36 +62,42 @@ uciadd() {
 
 	# Add network interface
 	if ! uci_quiet get network.${iface}; then
-		logger -t "dockerd-init" -p notice "Adding docker default interface to network uci config (${iface})"
+		logger -t "dockerd-init" -p notice "Adding interface '${iface}' to network config"
 		uci_quiet add network interface
 		uci_quiet rename network.@interface[-1]="${iface}"
-		uci_quiet set network.@interface[-1].ifname="${device}"
+		uci_quiet set network.@interface[-1].device="${device}"
 		uci_quiet set network.@interface[-1].proto="none"
 		uci_quiet set network.@interface[-1].auto="0"
 		uci_quiet commit network
 	fi
 
 	# Add docker bridge device
-	if ! uci_quiet get network.${device}; then
-		logger -t "dockerd-init" -p notice "Adding docker default bridge device to network uci config (${device})"
+	if [ "$(find_network_device "$device")" = "" ]; then
+		logger -t "dockerd-init" -p notice "Adding bridge device '${device}' to network config"
 		uci_quiet add network device
-		uci_quiet rename network.@device[-1]="${device}"
 		uci_quiet set network.@device[-1].type="bridge"
 		uci_quiet set network.@device[-1].name="${device}"
-		uci_quiet add_list network.@device[-1].ifname="${device}"
 		uci_quiet commit network
+	else
+		logger -t "dockerd-init" -p notice "Bridge device '${device}' already defined in network config"
 	fi
 
 	# Add firewall zone
 	if ! uci_quiet get firewall.${zone}; then
-		logger -t "dockerd-init" -p notice "Adding docker default firewall zone to firewall uci config (${zone})"
+		logger -t "dockerd-init" -p notice "Adding firewall zone '${zone}' to firewall config"
 		uci_quiet add firewall zone
 		uci_quiet rename firewall.@zone[-1]="${zone}"
-		uci_quiet set firewall.@zone[-1].network="${iface}"
-		uci_quiet set firewall.@zone[-1].input="REJECT"
+		uci_quiet set firewall.@zone[-1].input="ACCEPT"
 		uci_quiet set firewall.@zone[-1].output="ACCEPT"
-		uci_quiet set firewall.@zone[-1].forward="REJECT"
+		uci_quiet set firewall.@zone[-1].forward="ACCEPT"
 		uci_quiet set firewall.@zone[-1].name="${zone}"
+		uci_quiet commit firewall
+	fi
+
+	# Add interface to firewall zone
+	if uci_quiet get firewall.${zone}; then
+		uci_quiet del_list firewall.${zone}.network="${iface}"
+		uci_quiet add_list firewall.${zone}.network="${iface}"
 		uci_quiet commit firewall
 	fi
 
@@ -92,21 +120,29 @@ ucidel() {
 		exit 0
 	}
 
-	if uci_quiet get network.${device}; then
-		logger -t "dockerd-init" -p notice "Deleting docker default bridge device from network uci config (${device})"
-		uci_quiet delete network.${device}
+	# Remove network device
+	if uci_quiet delete network.$(find_network_device "${device}"); then
+		logger -t "dockerd-init" -p notice "Deleting bridge device '${device}' from network config"
 		uci_quiet commit network
 	fi
 
+	# Remove network interface
 	if uci_quiet get network.${iface}; then
-		logger -t "dockerd-init" -p notice "Deleting docker default interface from network uci config (${iface})"
+		logger -t "dockerd-init" -p notice "Deleting interface '${iface}' from network config"
 		uci_quiet delete network.${iface}
 		uci_quiet commit network
 	fi
 
+	# Remove interface from firewall zone
 	if uci_quiet get firewall.${zone}; then
-		logger -t "dockerd-init" -p notice "Deleting docker firewall zone from firewall uci config (${zone})"
-		uci_quiet delete firewall.${zone}
+		logger -t "dockerd-init" -p notice "Deleting network interface '${iface}' in zone '${zone}' from firewall config"
+		uci_quiet del_list firewall.${zone}.network="${iface}"
+		uci_quiet commit firewall
+		# Remove Firewall zone if network is empty
+		if ! uci_quiet get firewall.${zone}.network; then
+			logger -t "dockerd-init" -p notice "Deleting firewall zone '${zone}' from firewall config"
+			uci_quiet delete firewall.${zone}
+		fi
 		uci_quiet commit firewall
 	fi
 
@@ -136,24 +172,40 @@ process_config() {
 	config_get data_root globals data_root "/opt/docker/"
 	config_get log_level globals log_level "warn"
 	config_get_bool iptables globals iptables "1"
+
+	# Don't add these options by default
+	# omission == docker defaults
 	config_get bip globals bip ""
+	config_get registry_mirrors globals registry_mirrors ""
+	config_get hosts globals hosts ""
+	config_get dns globals dns ""
+	config_get_bool ipv6 globals ipv6 ""
+	config_get ip globals ip ""
+	config_get fixed_cidr globals fixed_cidr ""
+	config_get fixed_cidr_v6 globals fixed_cidr_v6 ""
 
 	. /usr/share/libubox/jshn.sh
 	json_init
 	json_add_string "data-root" "${data_root}"
 	json_add_string "log-level" "${log_level}"
+	json_add_boolean "iptables" "${iptables}"
 	[ -z "${bip}" ] || json_add_string "bip" "${bip}"
-	json_add_array "registry-mirrors"
-	config_list_foreach globals registry_mirrors json_add_array_string
-	json_close_array
-	json_add_array "hosts"
-	config_list_foreach globals hosts json_add_array_string
-	json_close_array
-
-	json_add_boolean iptables "${iptables}"
-	[ "${iptables}" -ne "0" ] && config_foreach iptables_add_blocking_rule firewall
-
+	[ -z "${registry_mirrors}" ] || json_add_array "registry-mirrors"
+	[ -z "${registry_mirrors}" ] || config_list_foreach globals registry_mirrors json_add_array_string
+	[ -z "${registry_mirrors}" ] || json_close_array
+	[ -z "${hosts}" ] || json_add_array "hosts"
+	[ -z "${hosts}" ] || config_list_foreach globals hosts json_add_array_string
+	[ -z "${hosts}" ] || json_close_array
+	[ -z "${dns}" ] || json_add_array "dns"
+	[ -z "${dns}" ] || config_list_foreach globals dns json_add_array_string
+	[ -z "${dns}" ] || json_close_array
+	[ -z "${ipv6}" ] || json_add_boolean "ipv6" "${ipv6}"
+	[ -z "${ip}" ] || json_add_string "ip" "${ip}"
+	[ -z "${fixed_cidr}" ] || json_add_string "fixed-cidr" "${fixed_cidr}"
+	[ -z "${fixed_cidr_v6}" ] || json_add_string "fixed-cidr-v6" "${fixed_cidr_v6}"
 	json_dump > "${DOCKERD_CONF}"
+
+	[ "${iptables}" -eq "1" ] && config_foreach iptables_add_blocking_rule firewall
 }
 
 start_service() {
@@ -202,11 +254,14 @@ iptables_add_blocking_rule() {
 			return
 		}
 
+		# Wait for a maximum of 10 second per command, retrying every millisecond
+		local iptables_wait_args="--wait 10 --wait-interval 1000"
+
 		# Ignore errors as it might already be present
-		iptables --table filter --new DOCKER-USER 2>/dev/null
-		if ! iptables --table filter --check DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump DROP 2>/dev/null; then
+		iptables ${iptables_wait_args} --table filter --new DOCKER-USER 2>/dev/null
+		if ! iptables ${iptables_wait_args} --table filter --check DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump REJECT 2>/dev/null; then
 			logger -t "dockerd-init" -p notice "Drop traffic from ${inbound} to ${outbound}"
-			iptables --table filter --insert DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump DROP
+			iptables ${iptables_wait_args} --table filter --insert DOCKER-USER --in-interface "${inbound}" --out-interface "${outbound}" ${extra_iptables_args} --jump REJECT
 		fi
 	}
 

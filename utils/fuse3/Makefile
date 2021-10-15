@@ -9,22 +9,21 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=fuse3
-PKG_VERSION:=3.10.0
-PKG_RELEASE:=1
+PKG_VERSION:=3.10.5
+PKG_RELEASE:=$(AUTORELEASE)
 
 PKG_SOURCE:=fuse-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://github.com/libfuse/libfuse/releases/download/fuse-$(PKG_VERSION)
-PKG_HASH:=26517954567f237a7dbcb532755ba0d2c77575c5d90db7566b6e40ec05b0a039
+PKG_HASH:=b2e283485d47404ac896dd0bb7f7ba81e1470838e677e45f659804c3a3b69666
 PKG_BUILD_DIR:=$(BUILD_DIR)/fuse-$(PKG_VERSION)
 
 PKG_MAINTAINER:=
 PKG_CPE_ID:=cpe:/a:fuse_project:fuse
 
 PKG_INSTALL:=1
-PKG_BUILD_DEPENDS:=meson/host
 
 include $(INCLUDE_DIR)/package.mk
-include ../../devel/meson/meson.mk
+include $(INCLUDE_DIR)/meson.mk
 
 define Package/fuse3/Default
   TITLE:=FUSE
