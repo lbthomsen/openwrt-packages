@@ -1,14 +1,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=pdns
-PKG_VERSION:=4.3.1
-PKG_RELEASE:=1
+PKG_VERSION:=4.5.1
+PKG_RELEASE:=$(AUTORELEASE)
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=https://downloads.powerdns.com/releases/
-PKG_HASH:=d5146c04098ee94b9377ee491ebb3fd5eb061d7b24262f4a8e1a89f2ed3fc245
+PKG_HASH:=74d63c7aa0474de3c2137bb808164691a1a3a62942d2a9a70b648cd277923f9b
 
-PKG_MAINTAINER:=James Taylor <james@jtaylor.id.au>
+PKG_MAINTAINER:=Peter van Dijk <peter.van.dijk@powerdns.com>
 PKG_LICENCE:=GPL-2.0-only
 PKG_LICENCE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:powerdns:authoritative
@@ -171,6 +171,8 @@ define Package/pdns/conffiles
 /etc/init.d/pdns
 endef
 
+TARGET_CXX+=-std=c++17
+
 CONFIGURE_ARGS+= \
 	--sysconfdir=/etc/powerdns \
 	--libdir=/usr/lib/powerdns  \
@@ -184,11 +186,8 @@ CONFIGURE_ARGS+= \
 	--without-libsodium \
 	--enable-experimental-pkcs11 \
 	--enable-lua-records \
+	--enable-reproducible \
 	$(if $(CONFIG_PACKAGE_pdns-ixfrdist),--enable-ixfrdist,)
-
-CONFIGURE_VARS += \
-	boost_cv_lib_program_options=yes \
-	boost_cv_lib_program_options_LIBS=-lboost_program_options
 
 define Package/pdns/install
 	$(INSTALL_DIR) $(1)/etc/powerdns

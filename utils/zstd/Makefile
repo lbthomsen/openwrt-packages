@@ -1,22 +1,21 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=zstd
-PKG_VERSION:=1.4.5
-PKG_RELEASE:=2
+PKG_VERSION:=1.4.9
+PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.zst
 PKG_SOURCE_URL:=https://github.com/facebook/zstd/releases/download/v$(PKG_VERSION)
-PKG_HASH:=2c2366874bc449ff539614266d8c0d6ecdb4baf30bb65609c239ab4ed23c03c7
+PKG_HASH:=61dce0e9a5036d7fb9b5709ee6567c2c8a1b4ba48a8e43afe9ae355cc37bb494
 
 PKG_MAINTAINER:=
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=COPYING
 
-PKG_BUILD_DEPENDS:=meson/host
 PKG_INSTALL:=1
 
 include $(INCLUDE_DIR)/package.mk
-include ../../devel/meson/meson.mk
+include $(INCLUDE_DIR)/meson.mk
 
 MESON_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)/build/meson/openwrt-build
 

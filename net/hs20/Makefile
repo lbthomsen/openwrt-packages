@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=hs20
-PKG_RELEASE:=2
+PKG_RELEASE:=5
 
 PKG_SOURCE_URL:=http://w1.fi/hostap.git
 PKG_SOURCE_PROTO:=git
@@ -12,6 +12,7 @@ PKG_SOURCE_NAME:=hostapd
 PKG_MIRROR_HASH:=1b2a4947034142587a3f81eac2ea27dd64650e77f8943d973623b47533be2393
 PKG_MIRROR_VERSION:=$(PKG_SOURCE_DATE)-$(call version_abbrev,$(PKG_SOURCE_VERSION))
 PKG_SOURCE:=$(PKG_SOURCE_NAME)-$(PKG_MIRROR_VERSION).tar.xz
+PKG_SOURCE_SUBDIR:=$(PKG_SOURCE_NAME)-$(PKG_MIRROR_VERSION)
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)/$(PKG_SOURCE_NAME)-$(PKG_MIRROR_VERSION)
 
 PKG_MAINTAINER:=Daniel Golle <daniel@makrotopia.org>
@@ -20,8 +21,8 @@ PKG_CPE_ID:=cpe:/a:w1.fi:hostapd
 
 define Download/dm-ddf-dtd
   URL:=http://www.openmobilealliance.org/tech/DTD
-  FILE:=dm_ddf-v1_2.dtd
-  HASH:=1fb8f97ee13b673e0d2386ef3ec64fbc9c8d75429a9725dc3fac295c4d5ccae4
+  FILE:=dm_ddf-v1_3.dtd
+  HASH:=9b3e1dc66a2d38fc6e1300e9fb6f06f95d042206dabc94ae989739feaeb0733e
 endef
 
 define Download/spp-xsd
@@ -40,6 +41,7 @@ ifdef CONFIG_USE_GLIBC
 endif
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
 define Package/hs20-common
   SECTION:=net
@@ -75,7 +77,7 @@ define Package/hs20-server
   SUBMENU:=WirelessAPD
   TITLE:=Hotspot 2.0 OSU server
   URL:=http://hostap.epitest.fi/
-  DEPENDS:=+hs20-common +libopenssl +libsqlite3 +libxml2 +php7 +php7-cgi +php7-mod-xml +php7-mod-pdo-sqlite +openssl-util +sqlite3-cli +uhttpd +xxd
+  DEPENDS:=+hs20-common +libopenssl +libsqlite3 +libxml2 +php8 +php8-cgi +php8-mod-xml +php8-mod-pdo-sqlite +openssl-util +sqlite3-cli +uhttpd +xxd
 endef
 
 define Package/hs20-server/description
@@ -116,7 +118,7 @@ endef
 
 define Package/hs20-common/install
 	$(INSTALL_DIR) $(1)/etc/hs20/spp
-	$(INSTALL_DATA) $(DL_DIR)/dm_ddf-v1_2.dtd $(1)/etc/hs20/spp
+	$(INSTALL_DATA) $(DL_DIR)/dm_ddf-v1_3.dtd $(1)/etc/hs20/spp
 	$(INSTALL_DATA) $(DL_DIR)/spp-v1_0.xsd $(1)/etc/hs20/spp/spp.xsd
 endef
 

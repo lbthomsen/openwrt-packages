@@ -8,14 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=icu4c
-MAJOR_VERSION:=68
+MAJOR_VERSION:=69
 MINOR_VERSION:=1
 PKG_VERSION:=$(MAJOR_VERSION).$(MINOR_VERSION)
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(MAJOR_VERSION)_$(MINOR_VERSION)-src.tgz
 PKG_SOURCE_URL:=https://github.com/unicode-org/icu/releases/download/release-$(MAJOR_VERSION)-$(MINOR_VERSION)
-PKG_HASH:=a9f2e3d8b4434b8e53878b4308bd1e6ee51c9c7042e2b1a376abefb6fbb29f2d
+PKG_HASH:=4cba7b7acd1d3c42c44bb0c14be6637098c7faf2b330ce876bc5f3b915d09745
 
 PKG_LICENSE:=ICU
 PKG_LICENSE_FILES:=LICENSE
@@ -41,6 +41,7 @@ define Package/icu
   TITLE:=International Components for Unicode
   URL:=http://icu-project.org
   DEPENDS:=+libstdcpp +libpthread
+  ABI_VERSION:=$(MAJOR_VERSION)
 endef
 
 define Package/icu/description
@@ -54,6 +55,7 @@ define Package/icu-full-data
   TITLE:=Full ICU Data
   URL:=http://icu-project.org
   DEPENDS:=+icu
+  ABI_VERSION:=$(MAJOR_VERSION)
 endef
 
 define Package/icu-full-data/description
@@ -99,8 +101,12 @@ CONFIGURE_ARGS:= \
 
 HOST_CONFIGURE_CMD:= ./runConfigureICU
 HOST_CONFIGURE_VARS:=
-HOST_CONFIGURE_ARGS:= \
-	Linux/gcc \
+ifeq ($(HOST_OS),Darwin)
+HOST_CONFIGURE_ARGS:= MacOSX
+else
+HOST_CONFIGURE_ARGS:= Linux/gcc 
+endif
+HOST_CONFIGURE_ARGS+= \
 	--disable-debug \
 	--enable-release \
 	--enable-shared \
@@ -136,7 +142,11 @@ define Host/Install
 	$(INSTALL_DATA) $(HOST_BUILD_DIR)/config/icucross.* $(STAGING_DIR_HOSTPKG)/share/icu/$(PKG_VERSION)/config/
 	$(INSTALL_BIN)  $(HOST_BUILD_DIR)/bin/icupkg $(STAGING_DIR_HOSTPKG)/share/icu/$(PKG_VERSION)/bin/
 	$(INSTALL_BIN)  $(HOST_BUILD_DIR)/bin/pkgdata $(STAGING_DIR_HOSTPKG)/share/icu/$(PKG_VERSION)/bin/
+ifeq ($(HOST_OS),Darwin)
+	$(CP)           $(HOST_BUILD_DIR)/lib/*.dylib* $(STAGING_DIR_HOSTPKG)/share/icu/$(PKG_VERSION)/lib/
+else
 	$(CP)           $(HOST_BUILD_DIR)/lib/*.so* $(STAGING_DIR_HOSTPKG)/share/icu/$(PKG_VERSION)/lib/
+endif
 	$(RM)           $(STAGING_DIR_HOSTPKG)/share/icu/current
 	(cd $(STAGING_DIR_HOSTPKG)/share/icu;$(LN) $(PKG_VERSION) current)
 endef

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2020 CZ.NIC, z. s. p. o. (https://www.nic.cz/)
+# Copyright (C) 2020-2021 CZ.NIC, z. s. p. o. (https://www.nic.cz/)
 #
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
@@ -8,14 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=gitlab-runner
-PKG_VERSION:=13.5.0
-PKG_RELEASE:=1
+PKG_VERSION:=14.3.2
+PKG_RELEASE:=$(AUTORELEASE)
 
 PKG_SOURCE:=$(PKG_NAME)-v$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://gitlab.com/gitlab-org/gitlab-runner/-/archive/v$(PKG_VERSION)
-PKG_HASH:=765c1556ed9dd4c1b36f9946224c62f068b171e2c1581eeb8f71055327d8a274
+PKG_HASH:=f67aeae05349f5c612ea5d8772407237caf4da586c0365e3c7edceec6b853d8c
 
-PKG_MAINTAINER:=Jan Pavlinec <jan.pavlinec@nic.cz>
+PKG_MAINTAINER:=Jan Pavlinec <jan.pavlinec1@gmail.com>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
 
@@ -33,9 +33,7 @@ define Package/gitlab-runner
   CATEGORY:=Development
   TITLE:=Runner for CI/CD
   URL:=https://docs.gitlab.com/runner
-  DEPENDS:= \
-    $(GO_ARCH_DEPENDS) \
-    @!(mips||mipsel) # Disabled because of docker engine error https://gitlab.com/gitlab-org/gitlab-runner/-/issues/27234
+  DEPENDS:=$(GO_ARCH_DEPENDS)
 endef
 
 define Package/gitlab-runner/description

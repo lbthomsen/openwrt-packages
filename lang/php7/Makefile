@@ -6,8 +6,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=php
-PKG_VERSION:=7.4.13
-PKG_RELEASE:=2
+PKG_VERSION:=7.4.24
+PKG_RELEASE:=1
 
 PKG_MAINTAINER:=Michael Heimpold <mhei@heimpold.de>
 PKG_LICENSE:=PHP-3.01
@@ -16,7 +16,7 @@ PKG_CPE_ID:=cpe:/a:php:php
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=http://www.php.net/distributions/
-PKG_HASH:=aead303e3abac23106529560547baebbedba0bb2943b91d5aa08fff1f41680f4
+PKG_HASH:=ff7658ee2f6d8af05b48c21146af5f502e121def4e76e862df5ec9fa06e98734
 
 PKG_BUILD_PARALLEL:=1
 PKG_USE_MIPS16:=0
@@ -47,7 +47,7 @@ include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
 
 define Package/php7/Default
-  SUBMENU:=PHP
+  SUBMENU:=PHP7
   SECTION:=lang
   CATEGORY:=Languages
   TITLE:=PHP7 Hypertext preprocessor
@@ -175,6 +175,10 @@ CONFIGURE_ARGS+= \
 	--with-external-pcre \
 	--with-zlib="$(STAGING_DIR)/usr"
 
+ifeq ($(CONFIG_LIBC_USE_GLIBC),y)
+TARGET_LDFLAGS += -ldl
+endif
+
 ifneq ($(SDK)$(CONFIG_PACKAGE_php7-mod-bcmath),)
   CONFIGURE_ARGS+= --enable-bcmath=shared
 else
@@ -257,9 +261,9 @@ endif
 
 ifneq ($(SDK)$(CONFIG_PACKAGE_php7-mod-imap),)
   CONFIGURE_ARGS+= \
-		--with-imap=shared,"$(STAGING_DIR)/usr" \
-		--with-kerberos=no \
-		--with-imap-ssl="$(STAGING_DIR)/usr"
+	--with-imap=shared,"$(STAGING_DIR)/usr" \
+	--with-kerberos=no \
+	--with-imap-ssl="$(STAGING_DIR)/usr"
 else
   CONFIGURE_ARGS+= --without-imap
 endif
@@ -528,9 +532,34 @@ define Package/php7-fpm/conffiles
 /etc/config/php7-fpm
 endef
 
+define Package/php7-mod-openssl/postinst
+#!/bin/sh
+[ -n "$$IPKG_INSTROOT" ] || {
+	if [ -e "/etc/php7/20_openssl.ini" ] && [ -e "/etc/php7/15_openssl.ini" ]; then
+		echo "Renaming PHP ini file '/etc/php7/20_openssl.ini' -> '/etc/php7/15_openssl.ini'"
+		mv /etc/php7/20_openssl.ini /etc/php7/15_openssl.ini
+	fi
+}
+endef
+
+define Package/php7-mod-mysqli/postinst
+#!/bin/sh
+[ -n "$$IPKG_INSTROOT" ] || {
+	if [ -e "/etc/php7/20_mysqli.ini" ] && [ -e "/etc/php7/30_mysqli.ini" ]; then
+		echo "Renaming PHP ini file '/etc/php7/20_mysqli.ini' -> '/etc/php7/30_mysqli.ini'"
+		mv /etc/php7/20_mysqli.ini /etc/php7/30_mysqli.ini
+	fi
+}
+endef
+
 define Build/Prepare
 	$(call Build/Prepare/Default)
-	( cd $(PKG_BUILD_DIR); touch configure.ac; ./buildconf --force )
+	$(if $(QUILT),,( cd $(PKG_BUILD_DIR); touch configure.ac; ./buildconf --force ))
+endef
+
+define Build/Configure
+	$(if $(QUILT),( cd $(PKG_BUILD_DIR); touch configure.ac; ./buildconf --force ))
+	$(call Build/Configure/Default)
 endef
 
 define Build/InstallDev

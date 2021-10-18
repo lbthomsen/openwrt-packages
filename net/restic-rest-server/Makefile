@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=restic-rest-server
 PKG_VERSION:=0.9.7
-PKG_RELEASE:=2
+PKG_RELEASE:=5
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/rest-server-$(PKG_VERSION)
 PKG_SOURCE:=rest-server-$(PKG_VERSION).tar.gz
@@ -19,7 +19,6 @@ PKG_USE_MIPS16:=0
 
 GO_PKG:=github.com/restic/rest-server/
 GO_PKG_BUILD_PKG:=github.com/restic/rest-server/cmd/rest-server/
-GO_PKG_LDFLAGS:=-s -w
 GO_PKG_LDFLAGS_X:=main.version=$(PKG_VERSION)
 
 include $(INCLUDE_DIR)/package.mk
@@ -42,6 +41,8 @@ Rest Server is a high performance HTTP server that implements restic's REST back
 API. It provides secure and efficient way to backup data remotely, using restic
 backup client via the rest: URL.
 endef
+
+GO_PKG_BUILD_VARS += GO111MODULE=auto
 
 define Package/restic-rest-server/install
 	$(INSTALL_DIR) $(1)/usr/bin

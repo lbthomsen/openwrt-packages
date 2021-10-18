@@ -6,15 +6,15 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=mc
-PKG_VERSION:=4.8.25
-PKG_RELEASE:=1
-PKG_MAINTAINER:=Dirk Brenken <dev@brenken.org>
+PKG_VERSION:=4.8.27
+PKG_RELEASE:=2
+PKG_MAINTAINER:=
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_CPE_ID:=cpe:/a:midnight_commander:midnight_commander
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=http://ftp.midnight-commander.org/
-PKG_HASH:=ffc19617f20ebb23330acd3998b7fd559a042d172fa55746d53d246697b2548a
+PKG_HASH:=31be59225ffa9920816e9a8b3be0ab225a16d19e4faf46890f25bdffa02a4ff4
 PKG_BUILD_PARALLEL:=1
 PKG_FIXUP:=autoreconf gettext-version
 PKG_BUILD_DEPENDS:=MC_VFS:libtirpc
@@ -33,12 +33,12 @@ include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/nls.mk
 
 define Package/mc
-	SECTION:=utils
-	CATEGORY:=Utilities
-	DEPENDS:=+glib2 +libncurses +libmount +MC_VFS:libssh2 $(ICONV_DEPENDS)
-	TITLE:=Midnight Commander - a powerful visual file manager
-	URL:=https://www.midnight-commander.org/
-	MENU:=1
+  SECTION:=utils
+  CATEGORY:=Utilities
+  DEPENDS:=+glib2 +libncurses +libmount +MC_VFS:libssh2 $(ICONV_DEPENDS)
+  TITLE:=Midnight Commander - a powerful visual file manager
+  URL:=https://www.midnight-commander.org/
+  MENU:=1
 endef
 
 define Package/mc/config
@@ -107,7 +107,8 @@ define Package/mc/install
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/misc/mc.menu $(1)/etc/mc
 	$(INSTALL_DIR) $(1)/etc/mc/skins
 	$(INSTALL_DATA) $(PKG_BUILD_DIR)/misc/skins/default.ini $(1)/etc/mc/skins
-	$(INSTALL_DIR) $(1)/etc/mc/mcedit/Syntax
+	$(INSTALL_DIR) $(1)/usr/share/mc/syntax
+	touch $(1)/usr/share/mc/syntax/Syntax
 ifeq ($(CONFIG_MC_DIFFVIEWER),y)
 	ln -sf mc $(1)/usr/bin/mcdiff
 endif
@@ -125,4 +126,23 @@ define Package/mc/conffiles
 /etc/mc/skins/default.ini
 endef
 
+define Package/mc-skins
+  TITLE:=Midnight Commander - a powerful visual file manager - skins
+  URL:=https://www.midnight-commander.org/
+  SECTION:=utils
+  CATEGORY:=Utilities
+  DEPENDS:=+mc
+endef
+
+define Package/mc-skins/install
+	$(INSTALL_DIR) $(1)/etc/mc/skins
+	$(CP) $(PKG_BUILD_DIR)/misc/skins/*.ini $(1)/etc/mc/skins/
+	$(RM) $(1)/etc/mc/skins/default.ini
+endef
+
+define Package/mc-skins/conffiles
+/etc/mc/skins/
+endef
+
 $(eval $(call BuildPackage,mc))
+$(eval $(call BuildPackage,mc-skins))

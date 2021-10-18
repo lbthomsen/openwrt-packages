@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=spi-tools
-PKG_VERSION:=0.8.5
-PKG_RELEASE:=1
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=$(AUTORELEASE)
 
-PKG_SOURCE_URL:=https://codeload.github.com/cpb-/spi-tools/tar.gz/$(PKG_VERSION)?
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_HASH:=a1846bf3b4d38fc419f8efe4555242aa581358fdca28452b3ca11f74e3572e33
+PKG_SOURCE_URL:=https://codeload.github.com/cpb-/spi-tools/tar.gz/$(PKG_VERSION)?
+PKG_HASH:=5eb24670461dcf2c58471114dc69b5204dab1c0cc5053878f6de79503bd8cc9f
 
 PKG_MAINTAINER:=John Crispin <blogic@openwrt.org>
 PKG_LICENSE:=GPL-2.0-only

@@ -70,8 +70,11 @@ IPV6_REGEX="\(\([0-9A-Fa-f]\{1,4\}:\)\{1,\}\)\(\([0-9A-Fa-f]\{1,4\}\)\{0,1\}\)\(
 # characters that are dangerous to pass to a shell command line
 SHELL_ESCAPE="[\"\'\`\$\!();><{}?|\[\]\*\\\\]"
 
-# dns character set
+# dns character set. "-" must be the last character
 DNS_CHARSET="[@a-zA-Z0-9._-]"
+
+# domains can have * for wildcard. "-" must be the last character
+DNS_CHARSET_DOMAIN="[@a-zA-Z0-9._*-]"
 
 # detect if called by ddns-lucihelper.sh script, disable retrys (empty variable == false)
 LUCI_HELPER=$(printf %s "$MYPROG" | grep -i "luci")
@@ -85,7 +88,7 @@ NSLOOKUP=$(command -v nslookup)
 
 # Transfer Programs
 WGET=$(command -v wget)
-WGET_SSL=$(command -v wget-ssl)
+$WGET -V 2>/dev/null | grep -F -q +https && WGET_SSL=$WGET
 
 CURL=$(command -v curl)
 # CURL_SSL not empty then SSL support available
@@ -711,8 +714,8 @@ do_transfer() {
 	[ -z "$bind_network" ] && [ "$ip_source" = "network" ] && [ "$ip_network" ] && bind_network="$ip_network"
 
 	# lets prefer GNU Wget because it does all for us - IPv4/IPv6/HTTPS/PROXY/force IP version
-	if [ -n "$WGET_SSL" -a $USE_CURL -eq 0 ]; then 			# except global option use_curl is set to "1"
-		__PROG="$WGET_SSL --hsts-file=/tmp/.wget-hsts -nv -t 1 -O $DATFILE -o $ERRFILE"	# non_verbose no_retry outfile errfile
+	if [ -n "$WGET_SSL" ] && [ $USE_CURL -eq 0 ]; then 			# except global option use_curl is set to "1"
+		__PROG="$WGET --hsts-file=/tmp/.wget-hsts -nv -t 1 -O $DATFILE -o $ERRFILE"	# non_verbose no_retry outfile errfile
 		# force network/ip to use for communication
 		if [ -n "$bind_network" ]; then
 			local __BINDIP
@@ -755,8 +758,8 @@ do_transfer() {
 		# force network/interface-device to use for communication
 		if [ -n "$bind_network" ]; then
 			local __DEVICE
-			network_get_physdev __DEVICE $bind_network || \
-				write_log 13 "Can not detect local device using 'network_get_physdev $bind_network' - Error: '$?'"
+			network_get_device __DEVICE $bind_network || \
+				write_log 13 "Can not detect local device using 'network_get_device $bind_network' - Error: '$?'"
 			write_log 7 "Force communication via device '$__DEVICE'"
 			__PROG="$__PROG --interface $__DEVICE"
 		fi

@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=nginx
-PKG_VERSION:=1.19.4
+PKG_VERSION:=1.21.1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=nginx-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://nginx.org/download/
-PKG_HASH:=61df546927905a0d624f9396bb7a8bc7ca7fd26522ce9714d56a78b73284000e
+PKG_HASH:=68ba0311342115163a0354cad34f90c05a7e8bf689dc498abf07899eda155560
 
 PKG_MAINTAINER:=Thomas Heil <heil@terminal-consulting.de> \
 				Ansuel Smith <ansuelsmth@gmail.com>
@@ -74,6 +74,7 @@ PKG_CONFIG_DEPENDS := \
 	CONFIG_OPENSSL_WITH_NPN
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
 
 define Package/nginx/default
   SECTION:=net
@@ -82,7 +83,8 @@ define Package/nginx/default
   TITLE:=Nginx web server
   URL:=http://nginx.org/
   DEPENDS:=+libopenssl +libpthread
-  PROVIDES:=nginx
+  # TODO: add PROVIDES when removing nginx
+  # PROVIDES:=nginx
 endef
 
 define Package/nginx/description
@@ -96,8 +98,9 @@ define Package/nginx-ssl
   VARIANT:=ssl
   DEPENDS+= +NGINX_PCRE:libpcre \
 	+NGINX_PCRE:nginx-ssl-util +!NGINX_PCRE:nginx-ssl-util-nopcre \
-	+NGINX_HTTP_GZIP:zlib +NGINX_LUA:liblua +libpthread +NGINX_DAV:libxml2 \
+	+NGINX_HTTP_GZIP:zlib +NGINX_LUA:liblua +NGINX_DAV:libxml2 \
 	+NGINX_UBUS:libubus +NGINX_UBUS:libblobmsg-json +NGINX_UBUS:libjson-c
+  EXTRA_DEPENDS:=nginx-ssl-util$(if $(CONFIG_NGINX_PCRE),,-nopcre) (>=1.5-1) (<2)
   CONFLICTS:=nginx-all-module
 endef
 
@@ -110,6 +113,7 @@ define Package/nginx-all-module
   TITLE += with ALL module selected
   DEPENDS+=+libpcre +nginx-ssl-util +zlib +liblua +libxml2 +libubus \
 	+libblobmsg-json +libjson-c
+  EXTRA_DEPENDS:=nginx-ssl-util (>=1.5-1) (<2)
   VARIANT:=all-module
   PROVIDES += nginx-ssl
 endef
@@ -357,8 +361,6 @@ define Package/nginx-ssl/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/nginx $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/nginx/conf.d
 	$(INSTALL_DATA) $(addprefix $(PKG_INSTALL_DIR)/etc/nginx/,$(config_files)) $(1)/etc/nginx/
-	$(INSTALL_CONF) ./files/nginx.conf $(1)/etc/nginx/
-	$(INSTALL_CONF) ./files/_lan.conf $(1)/etc/nginx/conf.d/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/nginx.init $(1)/etc/init.d/nginx
 ifeq ($(CONFIG_NGINX_NAXSI),y)
@@ -368,10 +370,6 @@ ifeq ($(CONFIG_NGINX_NAXSI),y)
 endif
 	$(if $(CONFIG_NGINX_NAXSI),$($(INSTALL_BIN) $(PKG_BUILD_DIR)/nginx-naxsi/naxsi_config/naxsi_core.rules $(1)/etc/nginx))
 	$(if $(CONFIG_NGINX_NAXSI),$(chmod 0640 $(1)/etc/nginx/naxsi_core.rules))
-	$(INSTALL_CONF) ./files/_redirect2ssl.conf $(1)/etc/nginx/conf.d/
-ifneq ($(CONFIG_IPV6),y)
-	$(SED) '/listen\s*\[/d' $(1)/etc/nginx/conf.d/*.conf # without IPv6 [::]
-endif
 endef
 
 Package/nginx-all-module/install = $(Package/nginx-ssl/install)
@@ -381,182 +379,215 @@ define Package/nginx-ssl/prerm
 [ -z "$${IPKG_INSTROOT}" ] || exit 0
 [ "$${PKG_UPGRADE}" = "1" ] && exit 0
 eval $$(/usr/bin/nginx-util get_env)
-rm -f "$${CONF_DIR}$${LAN_NAME}.crt"
-rm -f "$${CONF_DIR}$${LAN_NAME}.key"
+[ "$$(uci get "nginx.$${LAN_NAME}.$${MANAGE_SSL}")" = "self-signed" ] || exit 0
+rm -f "$$(uci get "nginx.$${LAN_NAME}.ssl_certificate")"
+rm -f "$$(uci get "nginx.$${LAN_NAME}.ssl_certificate_key")"
 exit 0
 endef
 
 Package/nginx-all-module/prerm = $(Package/nginx-ssl/prerm)
 
-define Build/Prepare
-	$(Build/Prepare/Default)
-	$(Prepare/nginx-naxsi)
-	$(Prepare/lua-nginx)
-	$(Prepare/nginx-brotli)
-	$(Prepare/nginx-headers-more)
-	$(Prepare/nginx-rtmp)
-	$(Prepare/nginx-ts)
-	$(Prepare/nginx-dav-ext-module)
-	$(Prepare/nginx-ubus-module)
+define Download/nginx-headers-more
+  VERSION:=a9f7c7e86cc7441d04e2f11f01c2e3a9c4b0301d
+  SUBDIR:=nginx-headers-more
+  FILE:=headers-more-nginx-module-$$(VERSION).tar.xz
+  URL:=https://github.com/openresty/headers-more-nginx-module.git
+  MIRROR_HASH:=ce0b9996ecb2cff790831644d6ab1adc087aa2771d77d3931c06246d11bc59fd
+  PROTO:=git
 endef
 
-
-ifeq ($(CONFIG_NGINX_HEADERS_MORE),y)
-  define Download/nginx-headers-more
-    VERSION:=a9f7c7e86cc7441d04e2f11f01c2e3a9c4b0301d
-    SUBDIR:=nginx-headers-more
-    FILE:=headers-more-nginx-module-$$(VERSION).tar.xz
-    URL:=https://github.com/openresty/headers-more-nginx-module.git
-    MIRROR_HASH:=ce0b9996ecb2cff790831644d6ab1adc087aa2771d77d3931c06246d11bc59fd
-    PROTO:=git
-  endef
-  $(eval $(call Download,nginx-headers-more))
-
-  define Prepare/nginx-headers-more
+define Prepare/nginx-headers-more
 	$(eval $(Download/nginx-headers-more))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-  endef
-endif
+endef
 
+define Download/nginx-brotli
+  VERSION:=e505dce68acc190cc5a1e780a3b0275e39f160ca
+  SUBDIR:=nginx-brotli
+  FILE:=ngx-brotli-module-$$(VERSION).tar.xz
+  URL:=https://github.com/google/ngx_brotli.git
+  MIRROR_HASH:=04847f11ef808fed50f44b2af0ef3abf59ff0ffc06dfc7394d9ab51d53fef31f
+  PROTO:=git
+endef
 
-ifeq ($(CONFIG_NGINX_HTTP_BROTLI),y)
-  define Download/nginx-brotli
-    VERSION:=e505dce68acc190cc5a1e780a3b0275e39f160ca
-    SUBDIR:=nginx-brotli
-    FILE:=ngx-brotli-module-$$(VERSION).tar.xz
-    URL:=https://github.com/google/ngx_brotli.git
-    MIRROR_HASH:=04847f11ef808fed50f44b2af0ef3abf59ff0ffc06dfc7394d9ab51d53fef31f
-    PROTO:=git
-  endef
-  $(eval $(call Download,nginx-brotli))
-
-  define Prepare/nginx-brotli
+define Prepare/nginx-brotli
 	$(eval $(Download/nginx-brotli))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-  endef
-endif
+endef
 
+define Download/nginx-rtmp
+  VERSION:=f0ea62342a4eca504b311cd5df910d026c3ea4cf
+  SUBDIR:=nginx-rtmp
+  FILE:=ngx-rtmp-module-$$(VERSION).tar.xz
+  URL:=https://github.com/ut0mt8/nginx-rtmp-module.git
+  MIRROR_HASH:=d3f58066f0f858ed79f7f2b0c9b89de2ccc512c94ab3d0625f6dcff3df0b72c1
+  PROTO:=git
+endef
 
-ifeq ($(CONFIG_NGINX_RTMP_MODULE),y)
-  define Download/nginx-rtmp
-    VERSION:=f0ea62342a4eca504b311cd5df910d026c3ea4cf
-    SUBDIR:=nginx-rtmp
-    FILE:=ngx-rtmp-module-$$(VERSION).tar.xz
-    URL:=https://github.com/ut0mt8/nginx-rtmp-module.git
-    MIRROR_HASH:=d3f58066f0f858ed79f7f2b0c9b89de2ccc512c94ab3d0625f6dcff3df0b72c1
-    PROTO:=git
-  endef
-  $(eval $(call Download,nginx-rtmp))
-
-  define  Prepare/nginx-rtmp
+define Prepare/nginx-rtmp
 	$(eval $(Download/nginx-rtmp))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-  endef
-endif
+endef
 
+define Download/nginx-ts
+  VERSION:=ef2f874d95cc75747eb625a292524a702aefb0fd
+  SUBDIR:=nginx-ts
+  FILE:=ngx-ts-module-$$(VERSION).tar.xz
+  URL:=https://github.com/arut/nginx-ts-module.git
+  MIRROR_HASH:=73938950bb286d40d9e54b0994d1a63827340c1156c72eb04d7041b25b20ec18
+  PROTO:=git
+endef
 
-ifeq ($(CONFIG_NGINX_TS_MODULE),y)
-  define Download/nginx-ts
-    VERSION:=ef2f874d95cc75747eb625a292524a702aefb0fd
-    SUBDIR:=nginx-ts
-    FILE:=ngx-ts-module-$$(VERSION).tar.xz
-    URL:=https://github.com/arut/nginx-ts-module.git
-    MIRROR_HASH:=73938950bb286d40d9e54b0994d1a63827340c1156c72eb04d7041b25b20ec18
-    PROTO:=git
-  endef
-  $(eval $(call Download,nginx-ts))
-
-  define  Prepare/nginx-ts
+define Prepare/nginx-ts
 	$(eval $(Download/nginx-ts))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-  endef
-endif
+endef
 
+define Download/nginx-naxsi
+  VERSION:=951123ad456bdf5ac94e8d8819342fe3d49bc002
+  SUBDIR:=nginx-naxsi
+  FILE:=nginx-naxsi-module-$$(VERSION).tar.xz
+  URL:=https://github.com/nbs-system/naxsi.git
+  MIRROR_HASH:=c734cae19a596affadd62a2df1b58d3df8d1364093a4e80a7cd1ab4555963535
+  PROTO:=git
+endef
 
-ifeq ($(CONFIG_NGINX_NAXSI),y)
-  define Download/nginx-naxsi
-    VERSION:=951123ad456bdf5ac94e8d8819342fe3d49bc002
-    SUBDIR:=nginx-naxsi
-    FILE:=nginx-naxsi-module-$$(VERSION).tar.xz
-    URL:=https://github.com/nbs-system/naxsi.git
-    MIRROR_HASH:=c734cae19a596affadd62a2df1b58d3df8d1364093a4e80a7cd1ab4555963535
-    PROTO:=git
-  endef
-  $(eval $(call Download,nginx-naxsi))
-
-  define Prepare/nginx-naxsi
+define Prepare/nginx-naxsi
 	$(eval $(Download/nginx-naxsi))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-  endef
-endif
+endef
 
+define Download/lua-nginx
+  VERSION:=e94f2e5d64daa45ff396e262d8dab8e56f5f10e0
+  SUBDIR:=lua-nginx
+  FILE:=lua-nginx-module-$$(VERSION).tar.xz
+  URL:=https://github.com/openresty/lua-nginx-module.git
+  MIRROR_HASH:=27729921964f066d97e99c263da153b34622a2f4b811114e4c3ee61c6fc71395
+  PROTO:=git
+endef
 
-ifeq ($(CONFIG_NGINX_LUA),y)
-  define Download/lua-nginx
-    VERSION:=e94f2e5d64daa45ff396e262d8dab8e56f5f10e0
-    SUBDIR:=lua-nginx
-    FILE:=lua-nginx-module-$$(VERSION).tar.xz
-    URL:=https://github.com/openresty/lua-nginx-module.git
-    MIRROR_HASH:=27729921964f066d97e99c263da153b34622a2f4b811114e4c3ee61c6fc71395
-    PROTO:=git
-  endef
-  $(eval $(call Download,lua-nginx))
-
-  define Prepare/lua-nginx
+define Prepare/lua-nginx
 	$(eval $(Download/lua-nginx))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-	$(call PatchDir,$(PKG_BUILD_DIR),./patches-lua-nginx)
-  endef
-endif
+endef
 
+define Download/nginx-dav-ext-module
+  VERSION:=f5e30888a256136d9c550bf1ada77d6ea78a48af
+  SUBDIR:=nginx-dav-ext-module
+  FILE:=nginx-dav-ext-module-$$(VERSION).tar.xz
+  URL:=https://github.com/arut/nginx-dav-ext-module.git
+  MIRROR_HASH:=70bb4c3907f4b783605500ba494e907aede11f8505702e370012abb3c177dc5b
+  PROTO:=git
+endef
 
-ifeq ($(CONFIG_NGINX_DAV),y)
-  define Download/nginx-dav-ext-module
-    VERSION:=f5e30888a256136d9c550bf1ada77d6ea78a48af
-    SUBDIR:=nginx-dav-ext-module
-    FILE:=nginx-dav-ext-module-$$(VERSION).tar.xz
-    URL:=https://github.com/arut/nginx-dav-ext-module.git
-    MIRROR_HASH:=70bb4c3907f4b783605500ba494e907aede11f8505702e370012abb3c177dc5b
-    PROTO:=git
-  endef
-  $(eval $(call Download,nginx-dav-ext-module))
-
-  define Prepare/nginx-dav-ext-module
+define Prepare/nginx-dav-ext-module
 	$(eval $(Download/nginx-dav-ext-module))
 	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-	$(call PatchDir,$(PKG_BUILD_DIR),./patches-dav-nginx)
-  endef
+endef
+
+define Download/nginx-ubus-module
+  VERSION:=b2d7260dcb428b2fb65540edb28d7538602b4a26
+  SUBDIR:=nginx-ubus-module
+  FILE:=nginx-ubus-module-$$(VERSION).tar.xz
+  URL:=https://github.com/Ansuel/nginx-ubus-module.git
+  MIRROR_HASH:=472cef416d25effcac66c85417ab6596e634a7a64d45b709bb090892d567553c
+  PROTO:=git
+endef
+
+define Prepare/nginx-ubus-module
+	$(eval $(Download/nginx-ubus-module))
+	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
+endef
+
+define Build/Patch
+	$(if $(QUILT),rm -rf $(PKG_BUILD_DIR)/patches; mkdir -p $(PKG_BUILD_DIR)/patches)
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/nginx,nginx/)
+ifneq "$(or $(CONFIG_NGINX_DAV),$(QUILT))" ""
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/dav-nginx,dav-nginx/)
+endif
+ifneq "$(or $(CONFIG_NGINX_LUA),$(QUILT))" ""
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/lua-nginx,lua-nginx/)
+endif
+ifneq "$(or $(CONFIG_NGINX_RTMP_MODULE),$(QUILT))" ""
+	$(call PatchDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rtmp-nginx,rtmp-nginx/)
+endif
+	$(if $(QUILT),touch $(PKG_BUILD_DIR)/.quilt_used)
+endef
+
+define Quilt/Refresh/Package
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/nginx,nginx/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/dav-nginx,dav-nginx/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/lua-nginx,lua-nginx/)
+	$(call Quilt/RefreshDir,$(PKG_BUILD_DIR),$(PATCH_DIR)/rtmp-nginx,rtmp-nginx/)
+endef
+
+define Build/Prepare
+	rm -rf $(PKG_BUILD_DIR)
+	mkdir -p $(PKG_BUILD_DIR)
+	$(PKG_UNPACK)
+
+ifeq ($(CONFIG_NGINX_NAXSI),y)
+  $(eval $(call Download,nginx-naxsi))
+  $(Prepare/nginx-naxsi)
+endif
+
+ifneq "$(or $(CONFIG_NGINX_LUA),$(QUILT))" ""
+  $(eval $(call Download,lua-nginx))
+  $(Prepare/lua-nginx)
+endif
+
+ifeq ($(CONFIG_NGINX_HTTP_BROTLI),y)
+  $(eval $(call Download,nginx-brotli))
+  $(Prepare/nginx-brotli)
+endif
+
+ifeq ($(CONFIG_NGINX_HEADERS_MORE),y)
+  $(eval $(call Download,nginx-headers-more))
+  $(Prepare/nginx-headers-more)
+endif
+
+ifneq "$(or $(CONFIG_NGINX_RTMP_MODULE),$(QUILT))" ""
+  $(eval $(call Download,nginx-rtmp))
+  $(Prepare/nginx-rtmp)
+endif
+
+ifeq ($(CONFIG_NGINX_TS_MODULE),y)
+  $(eval $(call Download,nginx-ts))
+  $(Prepare/nginx-ts)
+endif
+
+ifneq "$(or $(CONFIG_NGINX_DAV),$(QUILT))" ""
+  $(eval $(call Download,nginx-dav-ext-module))
+  $(Prepare/nginx-dav-ext-module)
 endif
 
 ifeq ($(CONFIG_NGINX_UBUS),y)
-  define Download/nginx-ubus-module
-    VERSION:=b2d7260dcb428b2fb65540edb28d7538602b4a26
-    SUBDIR:=nginx-ubus-module
-    FILE:=nginx-ubus-module-$$(VERSION).tar.xz
-    URL:=https://github.com/Ansuel/nginx-ubus-module.git
-    MIRROR_HASH:=472cef416d25effcac66c85417ab6596e634a7a64d45b709bb090892d567553c
-    PROTO:=git
-  endef
   $(eval $(call Download,nginx-ubus-module))
-
-  define Prepare/nginx-ubus-module
-	$(eval $(Download/nginx-ubus-module))
-	xzcat $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
-  endef
+  $(Prepare/nginx-ubus-module)
 endif
+
+	$(Build/Patch)
+endef
+
+$(eval $(call BuildPackage,nginx-ssl))
+$(eval $(call BuildPackage,nginx-all-module))
+$(eval $(call BuildPackage,nginx-mod-luci))
 
 # TODO: remove after a transition period (together with pkg nginx-util):
 # It is for smoothly substituting nginx and nginx-mod-luci-ssl (by nginx-ssl
 # respectively nginx-mod-luci). Add above commented PROVIDES when removing.
 
-Package/nginx = $(Package/nginx-ssl)
-Package/nginx/install = $(Package/nginx-ssl/install)
-Package/nginx/prerm = $(Package/nginx-ssl/prerm)
-$(eval $(call BuildPackage,nginx))
+define Package/nginx
+  TITLE:=Dummy package for transition when upgrading.
+  DEPENDS:=+nginx-ssl
+  PKGARCH:=all
+endef
 
-$(eval $(call BuildPackage,nginx-ssl))
-$(eval $(call BuildPackage,nginx-all-module))
-$(eval $(call BuildPackage,nginx-mod-luci))
+define Package/nginx/install
+	$(INSTALL_DIR) $(1)/usr/bin
+endef
+
+$(eval $(call BuildPackage,nginx))
 
 define Package/nginx-mod-luci-ssl
   TITLE:=Dummy package for transition when upgrading.
